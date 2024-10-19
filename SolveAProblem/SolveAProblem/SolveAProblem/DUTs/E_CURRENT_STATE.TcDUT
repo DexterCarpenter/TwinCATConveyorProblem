@@ -1,0 +1,18 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.13">
+  <DUT Name="E_CURRENT_STATE" Id="{4cc8077a-c559-4570-8101-d478fe5cf3a4}">
+    <Declaration><![CDATA[{attribute 'qualified_only'}
+{attribute 'strict'}
+TYPE E_CURRENT_STATE :
+(
+	STATE_STOPPED := 0,
+	STATE_READY,
+	STATE_ACCELERATING,
+	STATE_RUNNING,
+	STATE_DECELERATING,
+	STATE_EMERGENCY_STOP
+);
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

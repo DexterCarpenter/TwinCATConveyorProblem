@@ -1,0 +1,182 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.13">
+  <POU Name="MAIN" Id="{e7fa4d50-3c4b-4dc0-902b-2aaa9ad15401}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM MAIN
+VAR
+	// state vars
+	// current state of the conveyor
+	CURRENT_STATE : (STATE_STOPPED,STATE_READY,STATE_ACCELERATING,STATE_RUNNING,STATE_DECELERATING,STATE_EMERGENCY_STOP);
+	STATE_DISP_STR : STRING; // state of conveyor as a string
+	
+	// button vars
+	START  : BOOL := FALSE; // START button state
+	STOP   : BOOL := FALSE; // STOP button state
+	E_STOP : BOOL := FALSE; // E_STOP button state
+	RESET  : BOOL := FALSE; // RESET button state
+	
+	// kinematic vars
+	CONVEYOR_SPEED : REAL := 0; // current speed of the conveyor
+	DECEL_START_SPEED : REAL; // speed of the conveyor when it transitions directly from accelerating to decelerating
+	RUN_SPEED  : REAL := 100;   // ramp up to this speed on START
+	ACCEL_TIME : TIME := T#5S;  // time alloted to accelerate to RUN_SPEED
+	DECEL_TIME : TIME := T#1S;  // time alloted to deccelerate to zero speed
+	
+	// timer vars
+	ACCEL_TON : TON; // acceleration timer
+	DECEL_TON : TON; // deceleration timer
+	
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[// Solve a Problem - Conveyor Controls
+// Dexter Carpenter
+
+// [1] We have an conveyor with 4 buttons Start Stop AND E-Stop AND Reset.
+// [2] When system starts it shouldnt do anything until reset.
+// [3] Starting it should speed up to a RUN_SPEED, over ACCEL_TIME and maintain.
+// [4] If stop is Pressed speed should decrease to 0 over DECCEL_TIME.
+// [5] If E_Stop is Pressed speed should go immediately to 0.
+// [6] Before resuming operation after E-Stop, the system should require a reset.
+
+// run timers always
+ACCEL_TON(IN := (CURRENT_STATE = STATE_ACCELERATING), PT := ACCEL_TIME);
+DECEL_TON(IN := (CURRENT_STATE = STATE_DECELERATING), PT := DECEL_TIME);
+
+// update CURRENT STATE
+CASE CURRENT_STATE OF
+	STATE_STOPPED: // Waiting for RESET
+		STATE_DISP_STR := 'STOPPED';
+		START := FALSE;
+		IF RESET THEN CURRENT_STATE := STATE_READY; END_IF
+	
+    STATE_READY: // Waiting for START after RESET
+		STATE_DISP_STR := 'READY';
+		STOP := FALSE;
+		IF E_STOP THEN
+			CURRENT_STATE := STATE_EMERGENCY_STOP;
+			RESET := FALSE;
+		ELSIF START THEN
+			CURRENT_STATE := STATE_ACCELERATING;
+		END_IF
+	
+    STATE_ACCELERATING: // Accelerating to RUN_SPEED
+		STATE_DISP_STR := 'ACCELERATING';
+		RESET := FALSE;
+		IF E_STOP THEN
+			CURRENT_STATE := STATE_EMERGENCY_STOP;
+			RESET := FALSE;
+		ELSIF STOP THEN
+			CURRENT_STATE := STATE_DECELERATING;
+			DECEL_START_SPEED := CONVEYOR_SPEED;
+		ELSE
+			IF ACCEL_TON.Q THEN
+				CURRENT_STATE := STATE_RUNNING;
+				CONVEYOR_SPEED := RUN_SPEED;
+			ELSE
+				CONVEYOR_SPEED := RUN_SPEED * TO_REAL(ACCEL_TON.ET) / TO_REAL(ACCEL_TIME);
+			END_IF
+		END_IF
+	
+    STATE_RUNNING: // Running at RUN_SPEED
+		STATE_DISP_STR := 'RUNNING';
+		START := FALSE;
+		RESET := FALSE;
+		IF E_STOP THEN
+			CURRENT_STATE := STATE_EMERGENCY_STOP;
+			RESET := FALSE;
+		ELSIF STOP THEN
+			CURRENT_STATE := STATE_DECELERATING;
+			DECEL_START_SPEED := RUN_SPEED;
+		END_IF
+	
+    STATE_DECELERATING: // Decelerating to a stop
+		STATE_DISP_STR := 'DECELERATING';
+		START := FALSE;
+		RESET := FALSE;
+		IF E_STOP THEN
+			CURRENT_STATE := STATE_EMERGENCY_STOP;
+			RESET := FALSE;
+		ELSE
+			IF DECEL_TON.Q THEN
+				CURRENT_STATE := STATE_READY;
+				CONVEYOR_SPEED := 0;
+			ELSE
+				CONVEYOR_SPEED := DECEL_START_SPEED * ( 1 - (TO_REAL(DECEL_TON.ET) / TO_REAL(DECEL_TIME)));
+			END_IF
+		END_IF
+
+    STATE_EMERGENCY_STOP: // Emergency stop triggered
+		STATE_DISP_STR := 'EMERGENCY_STOP';
+		CONVEYOR_SPEED := 0;
+		START := FALSE;
+		STOP := FALSE;
+		IF RESET THEN CURRENT_STATE := STATE_STOPPED; E_STOP := FALSE; END_IF
+END_CASE
+]]></ST>
+    </Implementation>
+    <LineIds Name="MAIN">
+      <LineId Id="2" Count="0" />
+      <LineId Id="6" Count="0" />
+      <LineId Id="8" Count="5" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="495" Count="0" />
+      <LineId Id="478" Count="2" />
+      <LineId Id="496" Count="0" />
+      <LineId Id="212" Count="0" />
+      <LineId Id="329" Count="2" />
+      <LineId Id="497" Count="0" />
+      <LineId Id="444" Count="0" />
+      <LineId Id="334" Count="2" />
+      <LineId Id="445" Count="0" />
+      <LineId Id="451" Count="1" />
+      <LineId Id="450" Count="0" />
+      <LineId Id="453" Count="0" />
+      <LineId Id="456" Count="1" />
+      <LineId Id="454" Count="0" />
+      <LineId Id="340" Count="1" />
+      <LineId Id="446" Count="0" />
+      <LineId Id="409" Count="0" />
+      <LineId Id="342" Count="0" />
+      <LineId Id="383" Count="0" />
+      <LineId Id="343" Count="1" />
+      <LineId Id="491" Count="0" />
+      <LineId Id="345" Count="0" />
+      <LineId Id="467" Count="0" />
+      <LineId Id="471" Count="0" />
+      <LineId Id="477" Count="0" />
+      <LineId Id="474" Count="1" />
+      <LineId Id="472" Count="0" />
+      <LineId Id="347" Count="0" />
+      <LineId Id="359" Count="0" />
+      <LineId Id="348" Count="0" />
+      <LineId Id="364" Count="0" />
+      <LineId Id="447" Count="0" />
+      <LineId Id="414" Count="0" />
+      <LineId Id="410" Count="0" />
+      <LineId Id="365" Count="0" />
+      <LineId Id="382" Count="0" />
+      <LineId Id="368" Count="0" />
+      <LineId Id="370" Count="0" />
+      <LineId Id="492" Count="0" />
+      <LineId Id="366" Count="1" />
+      <LineId Id="350" Count="0" />
+      <LineId Id="371" Count="0" />
+      <LineId Id="448" Count="0" />
+      <LineId Id="415" Count="0" />
+      <LineId Id="411" Count="0" />
+      <LineId Id="372" Count="0" />
+      <LineId Id="498" Count="0" />
+      <LineId Id="374" Count="0" />
+      <LineId Id="484" Count="4" />
+      <LineId Id="483" Count="0" />
+      <LineId Id="373" Count="0" />
+      <LineId Id="351" Count="1" />
+      <LineId Id="377" Count="0" />
+      <LineId Id="449" Count="0" />
+      <LineId Id="412" Count="1" />
+      <LineId Id="353" Count="0" />
+      <LineId Id="214" Count="0" />
+      <LineId Id="37" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>
